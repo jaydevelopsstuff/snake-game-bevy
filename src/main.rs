@@ -11,10 +11,10 @@ use bevy::window::PresentMode;
 use rand::Rng;
 use crate::Direction::{Down, Left, Right, Up};
 
-const TIME_STEP: f64 = 1. / 8.;
+const TIME_STEP: f64 = 1. / 9.;
 const WINDOW_WIDTH: f32 = 700.;
 const WINDOW_HEIGHT: f32 = 700.;
-const GRID_SIZE: i32 = 32;
+const GRID_SIZE: i32 = 28;
 const GRID_SQUARE_SIZE: f32 = (WINDOW_WIDTH / GRID_SIZE as f32);
 
 fn main() {
@@ -38,6 +38,7 @@ fn main() {
                 .with_run_criteria(FixedTimestep::step(TIME_STEP))
                 .with_system(handle_movement)
                 .with_system(handle_eat_food.after(handle_movement))
+                .with_system(check_for_death.after(handle_movement))
         )
         .add_system_set(
             SystemSet::new()
@@ -54,6 +55,7 @@ fn main() {
         .run();
 }
 
+#[derive(PartialEq)]
 enum Direction {
     Up,
     Down,
@@ -140,13 +142,13 @@ fn spawn_food(mut commands: Commands) {
 fn handle_movement_input(keys: Res<Input<KeyCode>>, mut query: Query<&mut SnakeHead>) {
     let mut head = query.iter_mut().next().unwrap();
 
-    if keys.pressed(KeyCode::W) {
+    if keys.pressed(KeyCode::W) && head.direction != Down {
         head.direction = Up;
-    } else if keys.pressed(KeyCode::S) {
+    } else if keys.pressed(KeyCode::S) && head.direction != Up {
         head.direction = Down;
-    } else if keys.pressed(KeyCode::A) {
+    } else if keys.pressed(KeyCode::A) && head.direction != Right {
         head.direction = Left;
-    } else if keys.pressed(KeyCode::D) {
+    } else if keys.pressed(KeyCode::D) && head.direction != Left {
         head.direction = Right;
     }
 }
@@ -201,6 +203,51 @@ fn handle_eat_food(mut commands: Commands, head_query: Query<&Position, With<Sna
                 SnakeSegment,
                 Position {
                     x: -1,
+                    y: -1
+                }
+            ));
+        }
+    }
+}
+
+fn check_for_death(mut commands: Commands, entity_query: Query<Entity, Without<Camera2d>>, head_query: Query<&Position, With<SnakeHead>>, segments_query: Query<&Position, With<SnakeSegment>>) {
+    let head = head_query.single();
+    for segment in segments_query.iter() {
+        if head.x == segment.x && head.y == segment.y {
+            for entity in entity_query.iter() {
+                commands.entity(entity).despawn();
+            }
+
+            commands.spawn((
+                SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::MIDNIGHT_BLUE,
+                        ..default()
+                    },
+                    transform: Transform::default().with_scale(Vec3::splat(GRID_SQUARE_SIZE)),
+                    ..default()
+                },
+                SnakeHead {
+                    direction: Up
+                },
+                Position {
+                    x: 0,
+                    y: 0
+                }
+            ));
+
+            commands.spawn((
+                SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::GREEN,
+                        ..default()
+                    },
+                    transform: Transform::default().with_scale(Vec3::splat(GRID_SQUARE_SIZE)),
+                    ..default()
+                },
+                SnakeSegment,
+                Position {
+                    x: 0,
                     y: -1
                 }
             ));
